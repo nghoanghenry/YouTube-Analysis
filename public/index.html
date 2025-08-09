@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Analyzer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #ff0000;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .form-section {
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #ff0000;
+            box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1);
+        }
+
+        .btn {
+            background: #ff0000;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #cc0000;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ff0000;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .video-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .video-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .thumbnail {
+            flex-shrink: 0;
+        }
+
+        .thumbnail img {
+            width: 200px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .video-details h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+        }
+
+        .channel-info {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ff0000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #ff0000;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3c3;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .details-section {
+            margin-top: 30px;
+        }
+
+        .details-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .detail-item {
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+            display: inline-block;
+            width: 150px;
+        }
+
+        .detail-value {
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .video-header {
+                flex-direction: column;
+            }
+            
+            .thumbnail img {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 YouTube Video Analyzer</h1>
+            <p>Analyze YouTube videos and get detailed insights</p>
+        </div>
+        
+        <div class="content">
+            <div class="form-section">
+                <form id="analyzeForm">
+                    <div class="form-group">
+                        <label for="youtubeUrl">YouTube Video URL:</label>
+                        <input 
+                            type="url" 
+                            id="youtubeUrl" 
+                            name="url" 
+                            placeholder="https://www.youtube.com/watch?v=..." 
+                            required
+                        >
+                    </div>
+                    <button type="submit" class="btn" id="analyzeBtn">
+                        Analyze Video
+                    </button>
+                </form>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing video... Please wait</p>
+            </div>
+
+            <div class="error" id="error"></div>
+            <div class="success" id="success"></div>
+
+            <div class="results" id="results">
+                <div class="video-info" id="videoInfo">
+                    <!-- Video information will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('analyzeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('youtubeUrl').value;
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const success = document.getElementById('success');
+            const results = document.getElementById('results');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            
+            // Reset UI
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            results.style.display = 'none';
+            analyzeBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data.data);
+                    success.textContent = 'Video analyzed successfully!';
+                    success.style.display = 'block';
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+                
+            } catch (err) {
+                error.textContent = `Error: ${err.message}`;
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        function displayResults(data) {
+            const videoInfo = document.getElementById('videoInfo');
+            const results = document.getElementById('results');
+            
+            const thumbnail = data.thumbnails && data.thumbnails.length > 0 
+                ? data.thumbnails[data.thumbnails.length - 1].url 
+                : '';
+            
+            videoInfo.innerHTML = `
+                <div class="video-header">
+                    <div class="thumbnail">
+                        ${data.screenshot && data.screenshot.path ? 
+                            `<img src="${data.screenshot.path}" alt="Video screenshot" style="border: 2px solid #ff0000;">
+                             <p style="margin-top: 5px; font-size: 0.8em; color: #666;">Live Screenshot</p>` : 
+                            `<img src="${thumbnail}" alt="Video thumbnail" onerror="this.style.display='none'">`
+                        }
+                    </div>
+                    <div class="video-details">
+                        <h2>${escapeHtml(data.title)}</h2>
+                        <div class="channel-info">
+                            <strong>Channel:</strong> ${escapeHtml(data.author.name)}<br>
+                            <strong>Duration:</strong> ${data.duration}<br>
+                            ${data.playback ? `<strong>Playback Status:</strong> ${data.playback.canPlay ? '✅ Can Play' : '❌ Cannot Play'}<br>` : ''}
+                            ${data.method ? `<strong>Method:</strong> ${data.method}<br>` : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${formatNumber(data.viewCount)}</div>
+                        <div class="stat-label">Views</div>
+                    </div>
+                    ${data.playback ? `
+                    <div class="stat-card">
+                        <div class="stat-value">${data.playback.canPlay ? 'Yes' : 'No'}</div>
+                        <div class="stat-label">Can Play</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.playback.isPlaying ? 'Yes' : 'No'}</div>
+                        <div class="stat-label">Is Playing</div>
+                    </div>
+                    ` : `
+                    <div class="stat-card">
+                        <div class="stat-value">${formatNumber(data.engagement?.likeCount || 0)}</div>
+                        <div class="stat-label">Likes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${formatNumber(data.engagement?.commentCount || 0)}</div>
+                        <div class="stat-label">Comments</div>
+                    </div>
+                    `}
+                    <div class="stat-card">
+                        <div class="stat-value">${data.screenshot?.path ? 'Yes' : 'No'}</div>
+                        <div class="stat-label">Screenshot Taken</div>
+                    </div>
+                </div>
+                
+                <div class="details-section">
+                    <h3>Video Details</h3>
+                    <div class="detail-item">
+                        <span class="detail-label">Video ID:</span>
+                        <span class="detail-value">${data.videoId}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Analysis Method:</span>
+                        <span class="detail-value">${data.method || 'Unknown'}</span>
+                    </div>
+                    ${data.playback ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Playback Status:</span>
+                        <span class="detail-value">${data.playback.canPlay ? 'Can Play' : 'Cannot Play'}</span>
+                    </div>
+                    ${data.playback.error ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Playback Error:</span>
+                        <span class="detail-value" style="color: #c33;">${data.playback.error}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
+                    ${data.screenshot?.path ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Screenshot:</span>
+                        <span class="detail-value">
+                            <a href="${data.screenshot.path}" target="_blank" style="color: #ff0000;">View Full Screenshot</a>
+                        </span>
+                    </div>
+                    ` : ''}
+                    ${data.error ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Error:</span>
+                        <span class="detail-value" style="color: #c33;">${data.error}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            results.style.display = 'block';
+        }
+        
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
