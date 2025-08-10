@@ -80,6 +80,11 @@
             box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.1);
         }
 
+        input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+
         .btn {
             background: #ff0000;
             color: white;
@@ -100,6 +105,92 @@
         .btn:disabled {
             background: #ccc;
             cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #218838;
+        }
+
+        .transcript-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #28a745;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .transcript-header {
+            display: flex;
+            justify-content: between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .transcript-info {
+            flex: 1;
+        }
+
+        .transcript-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .transcript-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .transcript-preview {
+            color: #555;
+            font-style: italic;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .transcript-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .ai-analysis-badge {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .ai-analysis-badge.low {
+            background: #28a745;
+        }
+
+        .ai-analysis-badge.medium {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .ai-analysis-badge.high {
+            background: #dc3545;
         }
 
         .loading {
@@ -277,10 +368,29 @@
                             required
                         >
                     </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="downloadAudio" checked> 
+                            Download audio and create transcript with AI analysis
+                        </label>
+                    </div>
+                    
                     <button type="submit" class="btn" id="analyzeBtn">
                         Analyze Video
                     </button>
                 </form>
+            </div>
+
+            <!-- Transcript Library Section -->
+            <div class="form-section">
+                <h2 style="margin-bottom: 20px; color: #333;">📚 Transcript Library</h2>
+                <button type="button" class="btn" id="loadTranscriptsBtn" onclick="loadTranscripts()">
+                    Load Available Transcripts
+                </button>
+                <div id="transcriptsList" style="display: none; margin-top: 20px;">
+                    <!-- Transcripts will be loaded here -->
+                </div>
             </div>
 
             <div class="loading" id="loading">
@@ -304,6 +414,7 @@
             e.preventDefault();
             
             const url = document.getElementById('youtubeUrl').value;
+            const downloadAudio = document.getElementById('downloadAudio').checked;
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const success = document.getElementById('success');
@@ -323,7 +434,11 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({ 
+                        url: url,
+                        downloadAudio: downloadAudio,
+                        transcribe: downloadAudio
+                    })
                 });
                 
                 const data = await response.json();
@@ -401,6 +516,14 @@
                         <div class="stat-value">${data.screenshot?.path ? 'Yes' : 'No'}</div>
                         <div class="stat-label">Screenshot Taken</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.audio?.path ? 'Yes' : 'No'}</div>
+                        <div class="stat-label">Audio Downloaded</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.transcript?.path ? 'Yes' : 'No'}</div>
+                        <div class="stat-label">Transcript Created</div>
+                    </div>
                 </div>
                 
                 <div class="details-section">
@@ -433,6 +556,38 @@
                         </span>
                     </div>
                     ` : ''}
+                    ${data.audio?.path ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Audio Download:</span>
+                        <span class="detail-value">
+                            <a href="${data.audio.path}" download style="color: #ff0000;">Download WAV Audio (16kHz, Mono, 16-bit)</a>
+                            ${data.audio.method ? `<br><small style="color: #666;">Method: ${data.audio.method}</small>` : ''}
+                        </span>
+                    </div>
+                    ` : ''}
+                    ${data.transcript?.path ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Transcript & AI Analysis:</span>
+                        <span class="detail-value">
+                            <a href="/transcript/${extractFilename(data.transcript.path)}" download style="color: #ff0000;">📄 Download Full Transcript JSON</a>
+                            <a href="#" onclick="viewTranscriptSummary('${data.transcript.path}')" class="btn-secondary">📋 View Summary</a>
+                            ${data.transcript.wordCount ? `<br><small style="color: #666;">Words: ${data.transcript.wordCount}</small>` : ''}
+                            ${data.transcript.aiAnalysis ? `<br><small style="color: #666;">AI Analysis: ${data.transcript.aiAnalysis.processedSentences || 0} sentences processed</small>` : ''}
+                        </span>
+                    </div>
+                    ` : ''}
+                    ${data.audio?.error ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Audio Error:</span>
+                        <span class="detail-value" style="color: #c33;">${data.audio.error}</span>
+                    </div>
+                    ` : ''}
+                    ${data.transcript?.error ? `
+                    <div class="detail-item">
+                        <span class="detail-label">Transcript Error:</span>
+                        <span class="detail-value" style="color: #c33;">${data.transcript.error}</span>
+                    </div>
+                    ` : ''}
                     ${data.error ? `
                     <div class="detail-item">
                         <span class="detail-label">Error:</span>
@@ -458,6 +613,262 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        function extractFilename(path) {
+            if (!path) return '';
+            return path.split('/').pop().split('\\').pop();
+        }
+        
+        async function loadTranscripts() {
+            const transcriptsList = document.getElementById('transcriptsList');
+            const loadBtn = document.getElementById('loadTranscriptsBtn');
+            
+            try {
+                loadBtn.disabled = true;
+                loadBtn.textContent = 'Loading...';
+                
+                const response = await fetch('/transcripts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTranscripts(data.transcripts);
+                    transcriptsList.style.display = 'block';
+                } else {
+                    throw new Error(data.error || 'Failed to load transcripts');
+                }
+                
+            } catch (error) {
+                alert('Error loading transcripts: ' + error.message);
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Refresh Transcripts';
+            }
+        }
+        
+        function displayTranscripts(transcripts) {
+            const transcriptsList = document.getElementById('transcriptsList');
+            
+            if (transcripts.length === 0) {
+                transcriptsList.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">No transcripts available yet. Analyze a video with audio download enabled to create transcripts.</p>';
+                return;
+            }
+            
+            let html = `<h3 style="margin-bottom: 15px;">📄 Available Transcripts (${transcripts.length})</h3>`;
+            
+            transcripts.forEach((transcript, index) => {
+                const aiLevel = transcript.overallAiProbability > 70 ? 'high' : 
+                               transcript.overallAiProbability > 30 ? 'medium' : 'low';
+                
+                const aiLabel = transcript.overallAiProbability > 70 ? 'High AI' : 
+                               transcript.overallAiProbability > 30 ? 'Mixed' : 'Human';
+                
+                html += `
+                    <div class="transcript-card">
+                        <div class="transcript-header">
+                            <div class="transcript-info">
+                                <div class="transcript-title">
+                                    📄 ${transcript.filename}
+                                    ${transcript.hasAiAnalysis ? `<span class="ai-analysis-badge ${aiLevel}">${transcript.overallAiProbability.toFixed(1)}% AI (${aiLabel})</span>` : ''}
+                                </div>
+                                <div class="transcript-meta">
+                                    📅 Created: ${new Date(transcript.created).toLocaleString()}<br>
+                                    📦 Size: ${(transcript.size / 1024).toFixed(1)} KB
+                                    ${transcript.sentenceCount ? ` | 📝 ${transcript.sentenceCount} sentences analyzed` : ''}
+                                </div>
+                                <div class="transcript-preview">
+                                    "${transcript.textPreview}"
+                                </div>
+                            </div>
+                        </div>
+                        <div class="transcript-actions">
+                            <a href="/transcript/${transcript.filename}" download class="btn-secondary">
+                                📥 Download JSON
+                            </a>
+                            <button onclick="viewTranscriptSummary('${transcript.filename}')" class="btn-secondary">
+                                👀 View Details
+                            </button>
+                            ${transcript.hasAiAnalysis ? `
+                                <button onclick="showAiAnalysis('${transcript.filename}')" class="btn-secondary">
+                                    🤖 AI Analysis
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            transcriptsList.innerHTML = html;
+        }
+        
+        async function showAiAnalysis(filename) {
+            try {
+                const response = await fetch(`/transcript/${filename}`);
+                const transcriptData = await response.json();
+                
+                if (!transcriptData.ai_analysis) {
+                    alert('No AI analysis available for this transcript');
+                    return;
+                }
+                
+                const analysis = transcriptData.ai_analysis;
+                
+                // Create a modal for AI analysis
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+                    align-items: center; justify-content: center;
+                `;
+                
+                const content = document.createElement('div');
+                content.style.cssText = `
+                    background: white; padding: 30px; border-radius: 10px;
+                    max-width: 90%; max-height: 80%; overflow-y: auto;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                `;
+                
+                let analysisHtml = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2>🤖 AI Content Analysis</h2>
+                        <button onclick="this.closest('.modal').remove()" style="background: #ff0000; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">✕ Close</button>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
+                            <div style="font-size: 1.5em; font-weight: bold; color: #ff0000;">${analysis.overall_ai_probability?.toFixed(1) || 0}%</div>
+                            <div style="color: #666; font-size: 0.9em;">Overall AI Probability</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
+                            <div style="font-size: 1.5em; font-weight: bold; color: #ff0000;">${analysis.processed_sentences || 0}</div>
+                            <div style="color: #666; font-size: 0.9em;">Sentences Analyzed</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
+                            <div style="font-size: 1.5em; font-weight: bold; color: #ff0000;">${analysis.average_fake_percentage?.toFixed(1) || 0}%</div>
+                            <div style="color: #666; font-size: 0.9em;">Average Fake %</div>
+                        </div>
+                    </div>
+                    
+                    <h3>📊 Sentence-by-Sentence Analysis</h3>
+                    <div style="max-height: 400px; overflow-y: auto; margin-top: 10px;">
+                `;
+                
+                if (analysis.sentences) {
+                    analysis.sentences.forEach((sentence, index) => {
+                        const aiProb = sentence.ai_probability || 0;
+                        const color = aiProb > 70 ? '#dc3545' : aiProb > 30 ? '#ffc107' : '#28a745';
+                        analysisHtml += `
+                            <div style="background: #f8f9fa; margin: 10px 0; padding: 15px; border-radius: 5px; border-left: 4px solid ${color};">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span style="font-weight: bold;">Sentence ${index + 1}</span>
+                                    <span style="background: ${color}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.8em;">
+                                        ${aiProb.toFixed(1)}% AI
+                                    </span>
+                                </div>
+                                <div style="color: #333; line-height: 1.4;">
+                                    "${escapeHtml(sentence.text || '')}"
+                                </div>
+                                ${sentence.text_words ? `<div style="color: #666; font-size: 0.8em; margin-top: 5px;">Words: ${sentence.text_words}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+                
+                analysisHtml += `</div>`;
+                
+                content.innerHTML = analysisHtml;
+                modal.className = 'modal';
+                modal.appendChild(content);
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                alert('Error loading AI analysis: ' + error.message);
+            }
+        }
+
+        async function viewTranscriptSummary(filename) {
+            try {
+                const response = await fetch(`/transcript/${filename}`);
+                const transcriptData = await response.json();
+                
+                // Create a modal to show transcript summary
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+                    align-items: center; justify-content: center;
+                `;
+                
+                const content = document.createElement('div');
+                content.style.cssText = `
+                    background: white; padding: 30px; border-radius: 10px;
+                    max-width: 80%; max-height: 80%; overflow-y: auto;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                `;
+                
+                let summaryHtml = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2>📄 Transcript Summary - ${filename}</h2>
+                        <button onclick="this.closest('.modal').remove()" style="background: #ff0000; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">✕ Close</button>
+                    </div>
+                `;
+                
+                // Show metadata
+                if (transcriptData.metadata) {
+                    summaryHtml += `
+                        <div style="margin-bottom: 20px;">
+                            <h3>ℹ️ File Information</h3>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                                <strong>Generated:</strong> ${new Date(transcriptData.metadata.generated_at).toLocaleString()}<br>
+                                <strong>Service:</strong> ${transcriptData.metadata.service || 'Unknown'}<br>
+                                <strong>Source:</strong> ${transcriptData.metadata.source || 'Unknown'}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Show full transcript text
+                if (transcriptData.transcription && transcriptData.transcription.text) {
+                    summaryHtml += `
+                        <div style="margin-bottom: 20px;">
+                            <h3>📝 Full Transcript Text</h3>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                                ${escapeHtml(transcriptData.transcription.text)}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Show AI analysis summary if available
+                if (transcriptData.ai_analysis && transcriptData.ai_analysis.sentences) {
+                    summaryHtml += `
+                        <div style="margin-bottom: 20px;">
+                            <h3>🤖 AI Analysis Summary</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+                                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #ff0000;">${transcriptData.ai_analysis.overall_ai_probability?.toFixed(1) || 0}%</div>
+                                    <div style="color: #666; font-size: 0.9em;">Average AI Probability</div>
+                                </div>
+                                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center;">
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #ff0000;">${transcriptData.ai_analysis.processed_sentences || 0}</div>
+                                    <div style="color: #666; font-size: 0.9em;">Sentences Analyzed</div>
+                                </div>
+                            </div>
+                            <button onclick="showAiAnalysis('${filename}')" class="btn-secondary" style="margin-top: 10px;">
+                                🔍 View Detailed AI Analysis
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                content.innerHTML = summaryHtml;
+                modal.className = 'modal';
+                modal.appendChild(content);
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                alert('Error loading transcript summary: ' + error.message);
+            }
         }
     </script>
 </body>
