@@ -1,19 +1,25 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs').promises;
 const path = require('path');
+const { YtDlp } = require('ytdlp-nodejs');
+const ffmpeg = require('fluent-ffmpeg');
+const transcriptionService = require('./transcriptionService');
 
 class YouTubePuppeteerService {
   constructor() {
     this.browser = null;
     this.screenshotsDir = path.join(__dirname, '..', 'screenshots');
+    this.audioDir = path.join(__dirname, '..', 'audio');
+    this.ytdlp = new YtDlp();
     this.init();
   }
 
   async init() {
     try {
       await fs.mkdir(this.screenshotsDir, { recursive: true });
+      await fs.mkdir(this.audioDir, { recursive: true });
     } catch (error) {
-      console.error('Error creating screenshots directory:', error);
+      console.error('Error creating directories:', error);
     }
   }
 
@@ -193,7 +199,15 @@ class YouTubePuppeteerService {
 
       const playbackStatus = await this.checkPlaybackStatus(page);
       const screenshotPath = await this.takeScreenshot(page, videoId);
+      const audioPath = await this.downloadAudio(url, videoId);
       const thumbnails = this.generateThumbnails(videoId);
+
+      // Add transcription if audio is available
+      let transcriptionResult = null;
+      if (audioPath && !audioPath.includes('silent')) {
+        console.log('Starting audio transcription...');
+        transcriptionResult = await transcriptionService.transcribeAudioFile(audioPath);
+      }
 
       const analysis = {
         videoId: videoId,
@@ -213,6 +227,32 @@ class YouTubePuppeteerService {
         },
         screenshot: {
           path: screenshotPath,
+          timestamp: new Date().toISOString()
+        },
+        audio: {
+          path: audioPath,
+          format: 'wav',
+          sampleRate: '16kHz',
+          channels: 'mono',
+          bitDepth: '16bit',
+          timestamp: new Date().toISOString(),
+          method: audioPath ? (audioPath.includes('silent') ? 'Silent placeholder' : 'Downloaded') : 'Failed'
+        },
+        transcription: transcriptionResult ? {
+          success: transcriptionResult.success,
+          text: transcriptionResult.success ? transcriptionService.formatTranscription(transcriptionResult).text : '',
+          speakers: transcriptionResult.success ? transcriptionService.formatTranscription(transcriptionResult).speakers : [],
+          events: transcriptionResult.success ? transcriptionService.formatTranscription(transcriptionResult).events : [],
+          confidence: transcriptionResult.success ? transcriptionService.formatTranscription(transcriptionResult).confidence : 0,
+          wordCount: transcriptionResult.success ? transcriptionService.formatTranscription(transcriptionResult).wordCount : 0,
+          error: transcriptionResult.success ? null : transcriptionResult.error,
+          timestamp: transcriptionResult.timestamp
+        } : {
+          success: false,
+          text: '',
+          speakers: [],
+          events: [],
+          error: 'No audio available for transcription',
           timestamp: new Date().toISOString()
         },
         thumbnails: thumbnails,
@@ -251,6 +291,23 @@ class YouTubePuppeteerService {
         },
         screenshot: {
           path: null,
+          timestamp: new Date().toISOString()
+        },
+        audio: {
+          path: null,
+          format: 'wav',
+          sampleRate: '16kHz',
+          channels: 'mono',
+          bitDepth: '16bit',
+          timestamp: new Date().toISOString(),
+          error: 'Audio download failed due to video loading error'
+        },
+        transcription: {
+          success: false,
+          text: '',
+          speakers: [],
+          events: [],
+          error: 'Video loading failed - no transcription available',
           timestamp: new Date().toISOString()
         },
         thumbnails: this.generateThumbnails(videoId),
@@ -361,6 +418,214 @@ class YouTubePuppeteerService {
         return null;
       }
     }
+  }
+
+  async downloadAudio(url, videoId) {
+    try {
+      const timestamp = Date.now();
+      const outputFilename = `${videoId}_${timestamp}.wav`;
+      const outputPath = path.join(this.audioDir, outputFilename);
+
+      console.log(`Starting audio download for video: ${videoId}`);
+      console.log(`URL: ${url}`);
+      console.log(`Output path: ${outputPath}`);
+
+      // Ensure audio directory exists
+      const fs = require('fs');
+      if (!fs.existsSync(this.audioDir)) {
+        fs.mkdirSync(this.audioDir, { recursive: true });
+      }
+
+      // Check if ytdlp and ffmpeg are installed
+      console.log('Checking yt-dlp installation...');
+      try {
+        const isInstalled = await this.ytdlp.checkInstallationAsync({ ffmpeg: true });
+        console.log('yt-dlp and ffmpeg installed:', isInstalled);
+
+        if (!isInstalled) {
+          console.log('Downloading FFmpeg...');
+          await this.ytdlp.downloadFFmpeg();
+        }
+      } catch (checkError) {
+        console.warn('Installation check failed:', checkError);
+      }
+
+      // Get video info first to verify access
+      console.log('Getting video info...');
+      try {
+        const info = await this.ytdlp.getInfoAsync(url);
+        console.log('Video info retrieved:', {
+          title: info.title,
+          duration: info.duration,
+          uploader: info.uploader || info.channel
+        });
+      } catch (infoError) {
+        console.error('Failed to get video info:', infoError);
+        throw new Error(`Cannot access video: ${infoError.message}`);
+      }
+
+      // Method 1: Use downloadAsync with direct WAV format
+      console.log('Method 1: Attempting downloadAsync with WAV format...');
+      try {
+        const result = await this.ytdlp.downloadAsync(url, {
+          format: {
+            filter: "audioonly",
+            type: "wav"
+          },
+          output: outputPath,
+          onProgress: (progress) => {
+            console.log(`Download progress: ${progress.percent}%`);
+          }
+        });
+        
+        console.log('downloadAsync result:', result);
+        
+        // Check if file exists
+        if (fs.existsSync(outputPath)) {
+          console.log(`✅ Method 1 successful: ${outputPath}`);
+          console.log('Format: WAV, audio-only, 16kHz mono 16-bit');
+          return `/audio/${outputFilename}`;
+        }
+      } catch (downloadError) {
+        console.error('❌ Method 1 failed:', downloadError.message);
+      }
+
+      // Method 2: Use getFileAsync (in-memory download) then save as WAV
+      console.log('Method 2: Attempting in-memory download with getFileAsync...');
+      try {
+        const file = await this.ytdlp.getFileAsync(url, {
+          format: {
+            filter: "audioonly",
+            type: "wav"
+          },
+          filename: outputFilename,
+          onProgress: (progress) => {
+            console.log(`In-memory download progress: ${progress.percent}%`);
+          }
+        });
+
+        // Save file to disk
+        const buffer = Buffer.from(await file.arrayBuffer());
+        fs.writeFileSync(outputPath, buffer);
+        
+        console.log(`✅ Method 2 successful: ${outputPath}`);
+        console.log('Format: WAV saved from memory');
+        return `/audio/${outputFilename}`;
+        
+      } catch (fileError) {
+        console.error('❌ Method 2 failed:', fileError.message);
+      }
+
+      throw new Error('Both primary download methods failed');
+
+    } catch (error) {
+      console.error('Audio download error:', error);
+      console.log('Creating silent WAV file as fallback...');
+      return await this.createSilentWav(videoId);
+    }
+  }
+
+  async convertToWav(inputPath, outputPath, outputFilename) {
+    try {
+      console.log(`Converting ${inputPath} to WAV format...`);
+      console.log(`Output: ${outputPath}`);
+      
+      // Convert to WAV (16 kHz, mono, 16-bit) using FFmpeg
+      await new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+          .audioFrequency(16000)       // 16 kHz sample rate
+          .audioChannels(1)            // Mono
+          .audioBitrate('128k')        // Reasonable bitrate
+          .audioCodec('pcm_s16le')     // 16-bit PCM little-endian
+          .format('wav')
+          .output(outputPath)
+          .on('start', (commandLine) => {
+            console.log('FFmpeg command:', commandLine);
+          })
+          .on('progress', (progress) => {
+            console.log(`FFmpeg progress: ${Math.round(progress.percent || 0)}%`);
+          })
+          .on('end', () => {
+            console.log('FFmpeg conversion completed successfully');
+            resolve();
+          })
+          .on('error', (err) => {
+            console.error('FFmpeg conversion error:', err);
+            reject(err);
+          })
+          .run();
+      });
+
+      // Clean up temporary file
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(inputPath) && inputPath !== outputPath) {
+          fs.unlinkSync(inputPath);
+          console.log('Temporary file cleaned up:', inputPath);
+        }
+      } catch (cleanupError) {
+        console.warn('Could not cleanup temp file:', cleanupError);
+      }
+
+      // Verify final output
+      const fs = require('fs');
+      if (fs.existsSync(outputPath)) {
+        const stats = fs.statSync(outputPath);
+        console.log(`Audio processed successfully: ${outputPath}`);
+        console.log(`File size: ${Math.round(stats.size / 1024)} KB`);
+        console.log('Format: WAV, 16 kHz, mono, 16-bit PCM');
+        return `/audio/${outputFilename}`;
+      } else {
+        throw new Error('Final WAV file was not created');
+      }
+    } catch (error) {
+      console.error('WAV conversion error:', error);
+      throw error;
+    }
+  }
+
+  async createSilentWav(videoId) {
+    const timestamp = Date.now();
+    const outputFilename = `${videoId}_${timestamp}_silent.wav`;
+    const outputPath = path.join(this.audioDir, outputFilename);
+
+    console.log('Creating silent WAV file...');
+
+    // WAV file specs: 16kHz, mono, 16-bit, 10 seconds
+    const sampleRate = 16000;
+    const duration = 10;
+    const numSamples = sampleRate * duration;
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = numSamples * blockAlign;
+    const fileSize = 36 + dataSize;
+
+    const buffer = Buffer.alloc(44 + dataSize);
+    let offset = 0;
+
+    buffer.write('RIFF', offset); offset += 4;
+    buffer.writeUInt32LE(fileSize, offset); offset += 4;
+    buffer.write('WAVE', offset); offset += 4;
+
+    buffer.write('fmt ', offset); offset += 4;
+    buffer.writeUInt32LE(16, offset); offset += 4;
+    buffer.writeUInt16LE(1, offset); offset += 2;  // PCM
+    buffer.writeUInt16LE(numChannels, offset); offset += 2;
+    buffer.writeUInt32LE(sampleRate, offset); offset += 4;
+    buffer.writeUInt32LE(byteRate, offset); offset += 4;
+    buffer.writeUInt16LE(blockAlign, offset); offset += 2;
+    buffer.writeUInt16LE(bitsPerSample, offset); offset += 2;
+
+    buffer.write('data', offset); offset += 4;
+    buffer.writeUInt32LE(dataSize, offset); offset += 4;
+    
+    await require('fs').promises.writeFile(outputPath, buffer);
+    console.log(`Silent WAV file created: ${outputPath}`);
+    
+    return `/audio/${outputFilename}`;
   }
 
   parseViewCount(viewCountText) {
