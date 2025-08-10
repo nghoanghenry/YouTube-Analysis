@@ -11,50 +11,15 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:", "*.ytimg.com", "*.youtube.com"],
-      fontSrc: ["'self'", "https:", "data:"],
-      connectSrc: ["'self'", "https:"],
-      mediaSrc: ["'self'", "https:", "*.googlevideo.com"],
-      frameSrc: ["'none'"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
-    },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  },
-  noSniff: true,
-  frameguard: { action: 'deny' },
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  contentSecurityPolicy: false,
+  hsts: false,
+  noSniff: false,
+  frameguard: false,
+  referrerPolicy: false
 }));
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? function(origin, callback) {
-        if (!origin) return callback(null, true);
-        const allowedOrigins = [
-          /^https?:\/\/.*\.googleapis\.com$/,
-          /^https?:\/\/\d+\.\d+\.\d+\.\d+:8080$/,
-          'http://localhost:8080',
-          'http://127.0.0.1:8080'
-        ];
-        const isAllowed = allowedOrigins.some(allowed => {
-          if (typeof allowed === 'string') return allowed === origin;
-          return allowed.test(origin);
-        });
-        callback(isAllowed ? null : new Error('Not allowed by CORS'), isAllowed);
-      }
-    : true,
+  origin: true,
   credentials: true,
   optionsSuccessStatus: 200
 }));
