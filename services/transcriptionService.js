@@ -35,7 +35,6 @@ class TranscriptionService {
         file: audioBlob,
         modelId: "scribe_v1",
         tagAudioEvents: true,
-        languageCode: "eng",
         diarize: true,
         outputFormat: "json"
       });
@@ -89,7 +88,6 @@ class TranscriptionService {
         file: audioBlob,
         modelId: "scribe_v1",
         tagAudioEvents: true,
-        languageCode: "eng",
         diarize: true,
         outputFormat: "json"
       });
