@@ -1,9 +1,13 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs').promises;
 const path = require('path');
 const { YtDlp } = require('ytdlp-nodejs');
 const ffmpeg = require('fluent-ffmpeg');
 const transcriptionService = require('./transcriptionService');
+
+// Apply StealthPlugin to make Puppeteer less detectable
+puppeteer.use(StealthPlugin());
 
 class YouTubePuppeteerService {
   constructor() {
@@ -51,8 +55,12 @@ class YouTubePuppeteerService {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
-        ]
+          '--disable-gpu',
+          '--disable-web-security', // Optional: Helps with some restrictions
+          '--disable-features=site-per-process', // Optional: Improves compatibility
+          '--window-size=1280,720' // Match viewport size
+        ],
+        defaultViewport: { width: 1280, height: 720 }
       });
     }
     return this.browser;
@@ -68,6 +76,10 @@ class YouTubePuppeteerService {
 
       await page.setViewport({ width: 1280, height: 720 });
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+      // Add human-like behavior to mimic real user
+      await page.mouse.move(Math.random() * 100, Math.random() * 100);
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
 
       console.log(`Loading YouTube page: ${url}`);
       

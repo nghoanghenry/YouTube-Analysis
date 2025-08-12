@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 FROM node:18-slim
 
-# Cài các dependencies hệ thống cho Puppeteer, ffmpeg, yt-dlp
+
+# Cài các dependencies hệ thống cho Puppeteer, ffmpeg, ytdlp-nodejs
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     chromium \
     python3 \
-    python3-pip \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -40,9 +40,6 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     wget \
     && rm -rf /var/lib/apt/lists/*
-
-# Cài yt-dlp qua pip
-RUN pip3 install --break-system-packages yt-dlp
 
 # Tạo thư mục app
 WORKDIR /app

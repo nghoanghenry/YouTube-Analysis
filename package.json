@@ -26,6 +26,8 @@
     "helmet": "latest",
     "node-fetch": "^3.3.2",
     "puppeteer": "latest",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "uuid": "^11.1.0",
     "ytdlp-nodejs": "^2.3.4"
   },
