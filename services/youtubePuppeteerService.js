@@ -56,9 +56,9 @@ class YouTubePuppeteerService {
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
-          '--disable-web-security', // Optional: Helps with some restrictions
-          '--disable-features=site-per-process', // Optional: Improves compatibility
-          '--window-size=1280,720' // Match viewport size
+          '--disable-web-security', 
+          '--disable-features=site-per-process', 
+          '--window-size=1280,720' 
         ],
         defaultViewport: { width: 1280, height: 720 }
       });
